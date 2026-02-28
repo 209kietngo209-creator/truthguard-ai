@@ -1,1 +1,494 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TruthGuard AI – Phát hiện Tin Giả</title>
+  <style>
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --blue-dark:   #1a3a6b;
+      --blue-main:   #2563eb;
+      --blue-light:  #3b82f6;
+      --blue-pale:   #eff6ff;
+      --green:       #16a34a;
+      --yellow:      #d97706;
+      --red:         #dc2626;
+      --gray-1:      #f8fafc;
+      --gray-2:      #e2e8f0;
+      --gray-3:      #94a3b8;
+      --text-dark:   #1e293b;
+      --text-mid:    #475569;
+      --radius:      14px;
+      --shadow:      0 4px 24px rgba(37,99,235,.12);
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #dbeafe 0%, #f0f9ff 60%, #eff6ff 100%);
+      min-height: 100vh;
+      color: var(--text-dark);
+    }
+
+    /* ===== HEADER ===== */
+    header {
+      background: linear-gradient(135deg, var(--blue-dark) 0%, var(--blue-main) 100%);
+      color: #fff;
+      text-align: center;
+      padding: 48px 20px 36px;
+      position: relative;
+      overflow: hidden;
+    }
+    header::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .logo-icon { font-size: 52px; display: block; margin-bottom: 10px; }
+    header h1 { font-size: clamp(1.6rem, 5vw, 2.6rem); font-weight: 800; letter-spacing: -0.5px; }
+    header p  { margin-top: 8px; font-size: clamp(.9rem, 2.5vw, 1.1rem); opacity: .85; }
+
+    /* ===== BADGE ===== */
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.3);
+      border-radius: 999px; padding: 4px 14px; font-size: .78rem;
+      margin-top: 14px; backdrop-filter: blur(6px);
+    }
+
+    /* ===== MAIN CONTAINER ===== */
+    main {
+      max-width: 780px;
+      margin: -20px auto 60px;
+      padding: 0 16px;
+    }
+
+    /* ===== CARD ===== */
+    .card {
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 28px 28px 32px;
+      margin-bottom: 20px;
+    }
+
+    .card-label {
+      font-size: .75rem; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--blue-main); margin-bottom: 10px;
+    }
+
+    /* ===== TEXTAREA ===== */
+    textarea {
+      width: 100%; min-height: 160px;
+      border: 2px solid var(--gray-2);
+      border-radius: 10px; padding: 14px 16px;
+      font-size: 1rem; line-height: 1.6;
+      color: var(--text-dark); resize: vertical;
+      transition: border-color .25s;
+      font-family: inherit;
+    }
+    textarea:focus { outline: none; border-color: var(--blue-light); box-shadow: 0 0 0 4px rgba(59,130,246,.12); }
+    textarea::placeholder { color: var(--gray-3); }
+
+    /* ===== COUNTER ===== */
+    .char-count { text-align: right; font-size: .78rem; color: var(--gray-3); margin-top: 6px; }
+
+    /* ===== BUTTON ===== */
+    .btn-analyze {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 15px;
+      background: linear-gradient(135deg, var(--blue-main), var(--blue-light));
+      color: #fff; font-size: 1.05rem; font-weight: 700;
+      border: none; border-radius: 10px; cursor: pointer;
+      margin-top: 18px;
+      transition: transform .15s, box-shadow .15s;
+      box-shadow: 0 4px 16px rgba(37,99,235,.35);
+    }
+    .btn-analyze:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37,99,235,.4); }
+    .btn-analyze:active:not(:disabled) { transform: translateY(0); }
+    .btn-analyze:disabled { opacity: .7; cursor: not-allowed; }
+
+    /* ===== SPINNER ===== */
+    .spinner {
+      width: 20px; height: 20px;
+      border: 3px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== RESULT AREA ===== */
+    #result-area { display: none; }
+
+    /* ===== TRUST METER ===== */
+    .trust-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .trust-label { font-size: 1rem; font-weight: 600; color: var(--text-mid); }
+    .trust-badge {
+      font-size: .82rem; font-weight: 700; padding: 4px 14px;
+      border-radius: 999px; letter-spacing: .03em;
+    }
+    .trust-badge.high   { background: #dcfce7; color: var(--green);  }
+    .trust-badge.medium { background: #fef3c7; color: var(--yellow); }
+    .trust-badge.low    { background: #fee2e2; color: var(--red);    }
+
+    .meter-track {
+      height: 12px; background: var(--gray-2);
+      border-radius: 999px; overflow: hidden; margin-bottom: 6px;
+    }
+    .meter-fill {
+      height: 100%; border-radius: 999px;
+      transition: width 1s cubic-bezier(.4,0,.2,1);
+      width: 0%;
+    }
+    .meter-fill.high   { background: linear-gradient(90deg,#4ade80,#16a34a); }
+    .meter-fill.medium { background: linear-gradient(90deg,#fbbf24,#d97706); }
+    .meter-fill.low    { background: linear-gradient(90deg,#f87171,#dc2626); }
+
+    .meter-labels { display: flex; justify-content: space-between; font-size: .72rem; color: var(--gray-3); }
+
+    /* ===== VERDICT ===== */
+    .verdict-box {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 16px; border-radius: 10px; margin-top: 18px;
+    }
+    .verdict-box.high   { background: #f0fdf4; border-left: 4px solid var(--green);  }
+    .verdict-box.medium { background: #fffbeb; border-left: 4px solid var(--yellow); }
+    .verdict-box.low    { background: #fef2f2; border-left: 4px solid var(--red);    }
+    .verdict-icon { font-size: 28px; flex-shrink: 0; }
+    .verdict-title { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+    .verdict-desc  { font-size: .9rem; color: var(--text-mid); line-height: 1.55; }
+
+    /* ===== DETAIL TAGS ===== */
+    .detail-section { margin-top: 20px; }
+    .detail-title { font-size: .8rem; font-weight: 700; color: var(--gray-3); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 10px; }
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag {
+      font-size: .82rem; padding: 5px 12px; border-radius: 999px;
+      font-weight: 600;
+    }
+    .tag.warn { background: #fef3c7; color: #92400e; }
+    .tag.ok   { background: #dcfce7; color: #14532d; }
+    .tag.info { background: #dbeafe; color: #1e3a8a; }
+
+    /* ===== SIGNAL LIST ===== */
+    .signals { list-style: none; margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .signals li {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: .9rem; color: var(--text-mid); line-height: 1.5;
+    }
+    .signals li .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      flex-shrink: 0; margin-top: 6px;
+    }
+    .dot.red    { background: var(--red);    }
+    .dot.yellow { background: var(--yellow); }
+    .dot.green  { background: var(--green);  }
+
+    /* ===== TIPS ===== */
+    .tips-card {
+      background: var(--blue-pale);
+      border: 1px solid #bfdbfe;
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    .tips-card h3 { font-size: .95rem; font-weight: 700; color: var(--blue-dark); margin-bottom: 12px; }
+    .tips-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .tips-list li { font-size: .88rem; color: var(--text-mid); display: flex; gap: 8px; }
+    .tips-list li::before { content: '💡'; flex-shrink: 0; }
+
+    /* ===== FOOTER ===== */
+    footer {
+      text-align: center; font-size: .8rem;
+      color: var(--gray-3); padding: 20px 16px 40px;
+    }
+
+    /* ===== ANIMATION ===== */
+    .fade-in { animation: fadeIn .4s ease both; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 480px) {
+      .card { padding: 20px 16px 24px; }
+      header { padding: 36px 16px 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header>
+  <span class="logo-icon">🛡️</span>
+  <h1>TruthGuard AI</h1>
+  <p>Trợ lý phát hiện tin giả thông minh dành cho học sinh</p>
+  <div class="badge">🎓 Dự án giáo dục · Phiên bản Demo</div>
+</header>
+
+<!-- ===== MAIN ===== -->
+<main>
+
+  <!-- INPUT CARD -->
+  <div class="card" style="margin-top:28px;">
+    <div class="card-label">📋 Nhập nội dung cần kiểm tra</div>
+    <textarea id="inputText"
+      placeholder="Dán nội dung bài viết, tiêu đề tin tức, hoặc đoạn văn bản bạn muốn kiểm tra tính xác thực vào đây...&#10;&#10;Ví dụ: &quot;Uống nước chanh mỗi sáng có thể chữa khỏi ung thư hoàn toàn – bác sĩ tiết lộ bí mật bị giấu suốt 10 năm!&quot;"
+    ></textarea>
+    <div class="char-count"><span id="charCount">0</span> ký tự</div>
+
+    <button class="btn-analyze" id="btnAnalyze" onclick="analyze()">
+      <span id="btnIcon">🔍</span>
+      <span id="btnText">Phân tích ngay</span>
+      <div class="spinner" id="spinner"></div>
+    </button>
+  </div>
+
+  <!-- RESULT CARD -->
+  <div class="card fade-in" id="result-area">
+
+    <div class="card-label">📊 Kết quả phân tích</div>
+
+    <!-- Trust Meter -->
+    <div class="trust-header">
+      <span class="trust-label">Mức độ tin cậy</span>
+      <span class="trust-badge" id="trustBadge">—</span>
+    </div>
+    <div class="meter-track">
+      <div class="meter-fill" id="meterFill"></div>
+    </div>
+    <div class="meter-labels">
+      <span>Thấp (Nguy hiểm)</span>
+      <span>Trung bình</span>
+      <span>Cao (An toàn)</span>
+    </div>
+
+    <!-- Verdict -->
+    <div class="verdict-box" id="verdictBox">
+      <div class="verdict-icon" id="verdictIcon">—</div>
+      <div>
+        <div class="verdict-title" id="verdictTitle">—</div>
+        <div class="verdict-desc"  id="verdictDesc">—</div>
+      </div>
+    </div>
+
+    <!-- Detected Signals -->
+    <div class="detail-section">
+      <div class="detail-title">🚦 Dấu hiệu phát hiện</div>
+      <ul class="signals" id="signalList"></ul>
+    </div>
+
+    <!-- Tags -->
+    <div class="detail-section" style="margin-top:18px;">
+      <div class="detail-title">🏷️ Nhãn phân loại</div>
+      <div class="tags" id="tagList"></div>
+    </div>
+
+  </div>
+
+  <!-- TIPS CARD -->
+  <div class="tips-card">
+    <h3>📚 Mẹo nhận biết tin giả cho học sinh</h3>
+    <ul class="tips-list">
+      <li>Kiểm tra nguồn: Tìm tên tác giả và tổ chức đăng tin.</li>
+      <li>Đọc toàn bài, đừng chỉ đọc tiêu đề giật gân.</li>
+      <li>Tra cứu thêm trên 2–3 nguồn báo uy tín khác.</li>
+      <li>Chú ý ngôn ngữ cảm xúc quá mức, kêu gọi chia sẻ gấp.</li>
+      <li>Kiểm tra ngày đăng – tin cũ đôi khi được tái sử dụng.</li>
+      <li>Dùng công cụ như Google Reverse Image để kiểm tra ảnh.</li>
+    </ul>
+  </div>
+
+</main>
+
+<footer>
+  TruthGuard AI © 2025 · Dự án giáo dục · Không dùng cho mục đích thương mại<br>
+  <span style="font-size:.75rem">⚠️ Đây là phiên bản demo – kết quả mang tính minh hoạ</span>
+</footer>
+
+<script>
+  /* ===== ĐẾM KÝ TỰ ===== */
+  const inputText = document.getElementById('inputText');
+  const charCount = document.getElementById('charCount');
+  inputText.addEventListener('input', () => {
+    charCount.textContent = inputText.value.length;
+  });
+
+  /* ===== DỮ LIỆU MẪU ĐỂ DEMO ===== */
+  // Tuỳ theo từ khoá trong văn bản, trả về kịch bản phù hợp
+  const scenarios = {
+    low: {
+      level: 'low', score: 18,
+      badge: '🔴 Nguy hiểm – Tin giả',
+      title: 'Rất có khả năng là TIN GIẢ hoặc gây hiểu lầm!',
+      desc: 'Nội dung này chứa nhiều dấu hiệu điển hình của tin giả: ngôn ngữ cảm xúc cực đoan, thiếu nguồn trích dẫn, thông tin không thể kiểm chứng và lời kêu gọi chia sẻ khẩn cấp.',
+      signals: [
+        { type: 'red',    text: 'Ngôn ngữ giật gân, thổi phồng quá mức (VD: "bí mật bị giấu", "tiết lộ chấn động").' },
+        { type: 'red',    text: 'Không có nguồn trích dẫn hoặc tác giả cụ thể.' },
+        { type: 'red',    text: 'Đưa ra lời khẳng định y tế / khoa học không có bằng chứng.' },
+        { type: 'yellow', text: 'Kêu gọi chia sẻ ngay lập tức, tạo cảm giác khẩn cấp.' },
+        { type: 'yellow', text: 'Nội dung đánh vào cảm xúc (sợ hãi, tức giận, hy vọng quá mức).' },
+      ],
+      tags: [
+        { cls: 'warn', label: '⚠️ Tin giả' },
+        { cls: 'warn', label: '🔥 Giật gân' },
+        { cls: 'warn', label: '🚫 Thiếu nguồn' },
+        { cls: 'info', label: '💊 Chủ đề sức khoẻ' },
+      ]
+    },
+    medium: {
+      level: 'medium', score: 55,
+      badge: '🟡 Cần kiểm chứng',
+      title: 'Nội dung CẦN KIỂM CHỨNG thêm trước khi tin và chia sẻ',
+      desc: 'Nội dung có thể chứa một số thông tin đúng nhưng cũng có những phần thiếu chính xác hoặc bị bóp méo. Hãy tìm đọc thêm từ các nguồn báo chính thống trước khi tin hoàn toàn.',
+      signals: [
+        { type: 'yellow', text: 'Một số thông tin có thể kiểm chứng, một số thì không.' },
+        { type: 'yellow', text: 'Nguồn trích dẫn mơ hồ hoặc không rõ uy tín.' },
+        { type: 'green',  text: 'Không sử dụng ngôn ngữ quá cực đoan.' },
+        { type: 'yellow', text: 'Có thể có thiên kiến một chiều trong cách trình bày.' },
+        { type: 'green',  text: 'Cấu trúc bài viết tương đối rõ ràng.' },
+      ],
+      tags: [
+        { cls: 'warn', label: '🔍 Cần kiểm chứng' },
+        { cls: 'ok',   label: '✅ Một phần đúng' },
+        { cls: 'warn', label: '🌀 Nguồn mơ hồ' },
+      ]
+    },
+    high: {
+      level: 'high', score: 88,
+      badge: '🟢 Đáng tin cậy',
+      title: 'Nội dung có độ tin cậy CAO',
+      desc: 'Nội dung này thể hiện nhiều đặc điểm của thông tin chất lượng: có nguồn trích dẫn rõ ràng, ngôn ngữ trung lập, thông tin có thể kiểm chứng được từ nhiều phía. Tuy nhiên, vẫn nên đọc thêm từ nguồn gốc.',
+      signals: [
+        { type: 'green', text: 'Có trích dẫn nguồn hoặc tác giả rõ ràng.' },
+        { type: 'green', text: 'Ngôn ngữ trung lập, không cảm xúc thái quá.' },
+        { type: 'green', text: 'Thông tin cụ thể, có thể kiểm chứng (số liệu, ngày tháng...).' },
+        { type: 'green', text: 'Không kêu gọi chia sẻ cấp bách hoặc gây hoảng loạn.' },
+        { type: 'yellow', text: 'Nên đọc thêm nguồn gốc để có thông tin đầy đủ nhất.' },
+      ],
+      tags: [
+        { cls: 'ok',   label: '✅ Đáng tin' },
+        { cls: 'ok',   label: '📰 Có nguồn' },
+        { cls: 'info', label: '🔎 Kiểm chứng được' },
+      ]
+    }
+  };
+
+  /* ===== PHÂN TÍCH (GIẢ LẬP) ===== */
+  function classify(text) {
+    const t = text.toLowerCase();
+    // Từ khoá gợi ý tin giả
+    const fakeKW = ['bí mật','giấu','tiết lộ','chấn động','kinh hoàng',
+                    'không ai biết','chia sẻ ngay','lan truyền','chữa khỏi',
+                    'thần kỳ','100%','chắc chắn','bác sĩ ghét','họ không muốn'];
+    // Từ khoá gợi ý trung bình
+    const medKW  = ['theo nguồn tin','một số chuyên gia','có thể','được cho là','nghi ngờ'];
+    // Từ khoá gợi ý đáng tin
+    const goodKW = ['theo vnexpress','theo tuổi trẻ','nghiên cứu','đại học','bộ y tế',
+                    'thống kê','báo cáo','hội đồng','công bố chính thức'];
+
+    let fakeScore = fakeKW.filter(k => t.includes(k)).length;
+    let goodScore = goodKW.filter(k => t.includes(k)).length;
+
+    if (fakeScore >= 2)       return scenarios.low;
+    if (goodScore >= 2)       return scenarios.high;
+    if (fakeScore === 1)      return scenarios.medium;
+    // Văn bản ngắn → mặc định medium
+    if (text.length < 80)     return scenarios.medium;
+    // Ngẫu nhiên cho demo nếu không khớp từ khoá
+    const rand = Math.random();
+    if (rand < 0.33) return scenarios.low;
+    if (rand < 0.66) return scenarios.medium;
+    return scenarios.high;
+  }
+
+  function renderResult(s) {
+    const resultArea  = document.getElementById('result-area');
+    const trustBadge  = document.getElementById('trustBadge');
+    const meterFill   = document.getElementById('meterFill');
+    const verdictBox  = document.getElementById('verdictBox');
+    const verdictIcon = document.getElementById('verdictIcon');
+    const verdictTitle= document.getElementById('verdictTitle');
+    const verdictDesc = document.getElementById('verdictDesc');
+    const signalList  = document.getElementById('signalList');
+    const tagList     = document.getElementById('tagList');
+
+    // Hiển thị khu vực kết quả
+    resultArea.style.display = 'block';
+    resultArea.classList.remove('fade-in');
+    void resultArea.offsetWidth; // reflow để restart animation
+    resultArea.classList.add('fade-in');
+
+    // Badge & meter
+    const icons = { high:'✅', medium:'⚠️', low:'❌' };
+    trustBadge.textContent  = s.badge;
+    trustBadge.className    = `trust-badge ${s.level}`;
+    meterFill.className     = `meter-fill ${s.level}`;
+    // Đặt width sau 1 frame để trigger transition
+    requestAnimationFrame(() => { meterFill.style.width = s.score + '%'; });
+
+    // Verdict
+    verdictBox.className  = `verdict-box ${s.level}`;
+    verdictIcon.textContent = icons[s.level];
+    verdictTitle.textContent = s.title;
+    verdictDesc.textContent  = s.desc;
+
+    // Signals
+    signalList.innerHTML = s.signals.map(sig =>
+      `<li><span class="dot ${sig.type}"></span>${sig.text}</li>`
+    ).join('');
+
+    // Tags
+    tagList.innerHTML = s.tags.map(t =>
+      `<span class="tag ${t.cls}">${t.label}</span>`
+    ).join('');
+
+    // Scroll mượt xuống kết quả
+    setTimeout(() => resultArea.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  }
+
+  function analyze() {
+    const text = inputText.value.trim();
+
+    // Kiểm tra đầu vào rỗng
+    if (!text) {
+      inputText.style.borderColor = 'var(--red)';
+      inputText.focus();
+      setTimeout(() => inputText.style.borderColor = '', 1200);
+      return;
+    }
+
+    // Đổi trạng thái nút → loading
+    const btn     = document.getElementById('btnAnalyze');
+    const btnIcon = document.getElementById('btnIcon');
+    const btnTxt  = document.getElementById('btnText');
+    const spinner = document.getElementById('spinner');
+
+    btn.disabled = true;
+    btnIcon.style.display = 'none';
+    btnTxt.textContent = 'Đang phân tích...';
+    spinner.style.display = 'block';
+
+    // Giả lập độ trễ API (1.5 – 2.5 giây)
+    const delay = 1500 + Math.random() * 1000;
+    setTimeout(() => {
+      const result = classify(text);
+      renderResult(result);
+
+      // Khôi phục nút
+      btn.disabled = false;
+      btnIcon.style.display = 'inline';
+      btnTxt.textContent = 'Phân tích lại';
+      spinner.style.display = 'none';
+    }, delay);
+  }
+
+  /* Cho phép Ctrl+Enter để phân tích nhanh */
+  inputText.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') analyze();
+  });
+</script>
+</body>
+</html>
